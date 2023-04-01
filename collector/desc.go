@@ -93,9 +93,15 @@ func NewDesc(name, help string, level MetricLevel, variableLabels Labels, constL
 		return d
 	}
 
+	// use name[:labelValue][:labelNames] as desc id
 	xxh := xxhash.New()
 	for _, val := range labelValues {
+		xxh.WriteString(":")
 		xxh.WriteString(val)
+	}
+	for _, n := range labelNames {
+		xxh.WriteString(":")
+		xxh.WriteString(n)
 	}
 
 	d.id = xxh.Sum64()

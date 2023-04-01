@@ -54,8 +54,8 @@ struct {
 	__uint(max_entries, 4*1024);
 } exit_proc SEC(".maps");
 
-SEC("tp/syscalls/sys_enter_exit")
-int handle_exit(struct exit_args *ctx)
+SEC("tracepoint/sched/sched_process_exit")
+int handle_exit(struct trace_event_raw_sched_process_template *args)
 {
 	struct task_struct * task;
 	struct process_exit *e;
@@ -71,9 +71,12 @@ int handle_exit(struct exit_args *ctx)
 	task = (struct task_struct *)bpf_get_current_task();
 	e->ppid = BPF_CORE_READ(task, real_parent, tgid);
 
-	e->error_code = ctx->error_code;
+	e->error_code = BPF_CORE_READ(task, exit_code);
+	e->error_code = e->error_code >> 8;
 
 	/* submit ringbuf msg */
 	bpf_ringbuf_submit(e, 0);
+	
+	// bpf_printk("Exit send a message.");
 	return 0;
 }

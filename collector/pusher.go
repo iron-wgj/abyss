@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 const (
@@ -54,6 +56,11 @@ type StatelessAnalyzer interface {
 // It is used to perform analies on data collected to data aggregation or
 // alarms, which can shrink the amount of data neeeded to transition.
 type Pusher struct {
+	// Desc is used to identify Pusher, if Pusher value need to
+	// collect, Desc would be useful
+	Desc      *Desc
+	selfCol   bool      // true if Data need to be collected
+	valueType ValueType // metric type the data default chenged to
 	// Data is the data collected has been analysised
 	Data []*DataPair
 	mtx  sync.Mutex
@@ -84,6 +91,9 @@ type Pusher struct {
 }
 
 func NewPusher(
+	desc *Desc,
+	selfCol bool,
+	valueType ValueType,
 	pf PushFunc,
 	statefulAnas []StatefulAnalyzer,
 	statelessAnas []StatelessAnalyzer,
@@ -94,6 +104,9 @@ func NewPusher(
 	}
 
 	result := &Pusher{
+		Desc:         desc,
+		selfCol:      selfCol,
+		valueType:    valueType,
 		Data:         make([]*DataPair, 0),
 		dataBuf:      make([]*DataPair, 0),
 		pf:           pf,
@@ -157,6 +170,25 @@ func (p *Pusher) Describe(ch chan<- *Desc) {
 	for _, a := range p.StatelessAna {
 		a.Describe(ch)
 	}
+	if p.selfCol {
+		ch <- p.Desc
+	}
+}
+
+// selfCollec is used to collect raw data of pusher
+func (p *Pusher) selfCollect(data []*DataPair, ch chan<- Metric) {
+	for _, dp := range data {
+		cm, err := NewConstMetric(
+			p.Desc,
+			p.valueType,
+			dp.Value,
+		)
+		if err != nil {
+			glog.Error(err)
+			continue
+		}
+		ch <- NewTimeStampMetric(dp.Timestamp, cm)
+	}
 }
 
 func (p *Pusher) Collect(ch chan<- Metric) {
@@ -200,6 +232,11 @@ func (p *Pusher) Collect(ch chan<- Metric) {
 			fmt.Println("=============Analyze end========")
 			wg.Done()
 		}(a)
+	}
+
+	// collect self
+	if p.selfCol {
+		p.selfCollect(tmp, ch)
 	}
 
 	wg.Wait()

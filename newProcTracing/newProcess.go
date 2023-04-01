@@ -1,11 +1,9 @@
-package main
+package newProcTracing
 
 import (
 	"context"
 	"encoding/binary"
-	"flag"
 	"fmt"
-	"os"
 
 	bpf "github.com/aquasecurity/libbpfgo"
 	glog "github.com/golang/glog"
@@ -79,7 +77,7 @@ func DecodeToExitProcMsg(msg []byte) (*ExitProcMsg, error) {
 
 // load eBPF program to tracepoint sys_enter_execve and sys_enter_exit
 // need two channel to receive message from eBPF program
-func LoadBpfProgram(ctx context.Context, execMsgCh chan *NewProcMsg, exitMsgCh chan *ExitProcMsg) (*NewProcBPFObjs, error) {
+func LoadBpfProgram(ctx context.Context, execMsgCh chan<- *NewProcMsg, exitMsgCh chan<- *ExitProcMsg) (*NewProcBPFObjs, error) {
 	blo := &NewProcBPFObjs{}
 	var (
 		err                    error
@@ -90,7 +88,7 @@ func LoadBpfProgram(ctx context.Context, execMsgCh chan *NewProcMsg, exitMsgCh c
 		exitRingbuf            *bpf.RingBuffer
 	)
 
-	bpfModule, err = bpf.NewModuleFromFile("newProcess.bpf.o")
+	bpfModule, err = bpf.NewModuleFromFile("/home/ivic/program/abyss/newProcTracing/newProcess.bpf.o")
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +117,7 @@ func LoadBpfProgram(ctx context.Context, execMsgCh chan *NewProcMsg, exitMsgCh c
 		err = errors.WithMessage(err, "Can not attach program \"handle_exit\" to tracepoint.")
 		goto moduleAndProgErr
 	}
-	if _, err = prog_exit.AttachTracepoint("syscalls", "sys_enter_exit"); err != nil {
+	if _, err = prog_exit.AttachTracepoint("sched", "sched_process_exit"); err != nil {
 		err = errors.WithMessage(err, "Can not attach program \"handle_exit\" to tracepoint.")
 		goto moduleAndProgErr
 	}
@@ -143,6 +141,7 @@ func LoadBpfProgram(ctx context.Context, execMsgCh chan *NewProcMsg, exitMsgCh c
 	go receiveExecMsg(ctx, execByteCh, execMsgCh)
 	go receiveExitMsg(ctx, exitByteCh, exitMsgCh)
 
+	fmt.Println("Load succeed.")
 	return blo, nil
 
 initExitBufErr:
@@ -164,7 +163,7 @@ func CloseBpfObject(obj *NewProcBPFObjs) {
 	}
 }
 
-func receiveExecMsg(ctx context.Context, mapCh chan []byte, msgCh chan *NewProcMsg) {
+func receiveExecMsg(ctx context.Context, mapCh chan []byte, msgCh chan<- *NewProcMsg) {
 	for {
 		select {
 		case p := <-mapCh:
@@ -181,7 +180,7 @@ func receiveExecMsg(ctx context.Context, mapCh chan []byte, msgCh chan *NewProcM
 	}
 }
 
-func receiveExitMsg(ctx context.Context, mapCh chan []byte, msgCh chan *ExitProcMsg) {
+func receiveExitMsg(ctx context.Context, mapCh chan []byte, msgCh chan<- *ExitProcMsg) {
 	for {
 		select {
 		case p := <-mapCh:
@@ -190,7 +189,7 @@ func receiveExitMsg(ctx context.Context, mapCh chan []byte, msgCh chan *ExitProc
 				glog.Warning(err.Error())
 				continue
 			}
-			glog.Info("Received an exit message, %v\n", *msg)
+			glog.Infof("Received an exit message, %p\n", msg)
 			msgCh <- msg
 		case <-ctx.Done():
 			glog.Info("Routine \"receiveExitMsg\" exit.\n")
@@ -199,32 +198,54 @@ func receiveExitMsg(ctx context.Context, mapCh chan []byte, msgCh chan *ExitProc
 	}
 }
 
-func main() {
-	flag.Parse()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	execCh, exitCh := make(chan *NewProcMsg, 10), make(chan *ExitProcMsg, 10)
-
-	obj, err := LoadBpfProgram(ctx, execCh, exitCh)
-	if err != nil {
-		glog.Error(err.Error())
-	}
-	defer func() {
-		CloseBpfObject(obj)
-		glog.Flush()
-	}()
-
-	sig := make(chan os.Signal)
-	for {
-		select {
-		case m := <-execCh:
-			fmt.Println("execve:", m)
-		case m := <-exitCh:
-			fmt.Println("exit:", m)
-		case _ = <-sig:
-			cancel()
-			glog.Info("Monitor Process Exit!")
-			return
-		}
-	}
-}
+//func main() {
+//	flag.Parse()
+//
+//	ctx, cancel := context.WithCancel(context.Background())
+//	execCh, exitCh := make(chan *NewProcMsg, 10), make(chan *ExitProcMsg, 10)
+//
+//	obj, err := LoadBpfProgram(ctx, execCh, exitCh)
+//	if err != nil {
+//		glog.Error(err.Error())
+//	}
+//	defer func() {
+//		fmt.Println("Exit the program.")
+//		CloseBpfObject(obj)
+//		glog.Flush()
+//	}()
+//
+//	sig := make(chan bool)
+//	go func() {
+//		time.Sleep(time.Second * 10)
+//		sig <- true
+//	}()
+//	for {
+//		select {
+//		case m := <-execCh:
+//			flag := false
+//			for _, arg := range m.Argv {
+//				str := arg[:11]
+//				if str == "-bpfMonitor" {
+//					flag = true
+//					break
+//				}
+//			}
+//			if flag {
+//				fmt.Println("execve:", m)
+//				for _, str := range m.Argv {
+//					if []byte(str)[0] == 0 {
+//						break
+//					}
+//					fmt.Println("\t", []byte(str))
+//				}
+//			}
+//		case m := <-exitCh:
+//			fmt.Println("exit:", m)
+//		case _ = <-sig:
+//			cancel()
+//			fmt.Println("Monitor Process Exit.")
+//			glog.Info("Monitor Process Exit!")
+//			return
+//		}
+//	}
+//}

@@ -13,7 +13,7 @@ import (
 type testCollectFunc struct{}
 
 func (tc *testCollectFunc) Push(ch chan<- *collector.DataPair, ctx context.Context) {
-	dur, err := time.ParseDuration("0.1s")
+	dur, err := time.ParseDuration("0.2s")
 	if err != nil {
 		return
 	}
@@ -68,9 +68,19 @@ func (ta *testAna) Analyze(data []*collector.DataPair, ch chan<- collector.Metri
 }
 
 func TestPusher(t *testing.T) {
+	desc := collector.NewDesc(
+		"test",
+		"test",
+		collector.LevelInfo,
+		nil,
+		collector.Labels{"a": "a"},
+	)
 	tna := NewTestAna()
 	dur, _ := time.ParseDuration("1m")
 	tp := collector.NewPusher(
+		desc,
+		true,
+		collector.GaugeValue,
 		&testCollectFunc{},
 		nil,
 		[]collector.StatelessAnalyzer{tna},
@@ -134,9 +144,19 @@ func TestPusher(t *testing.T) {
 }
 
 func TestPusherOOT(t *testing.T) {
+	desc := collector.NewDesc(
+		"test",
+		"test",
+		collector.LevelInfo,
+		nil,
+		collector.Labels{"a": "a"},
+	)
 	tna := NewTestAna()
-	dur, _ := time.ParseDuration("2s")
+	dur, _ := time.ParseDuration("1m")
 	tp := collector.NewPusher(
+		desc,
+		false, // test Pusher.Data, dose not need the self collect
+		collector.GaugeValue,
 		&testCollectFunc{},
 		nil,
 		[]collector.StatelessAnalyzer{tna},
