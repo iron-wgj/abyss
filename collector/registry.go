@@ -100,6 +100,7 @@ func (errs *MultiError) Append(err error) {
 // See the Grouping example for how this can be down.
 type Registry struct {
 	mtx            sync.RWMutex
+	pushersByID    map[uint64]Pusher
 	collectorsByID map[uint64]Collector // ID is a hash of the descIDs
 	descIDs        map[uint64]struct{}
 }

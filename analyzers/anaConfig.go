@@ -1,6 +1,10 @@
-package collector
+package analyzer
 
-import "fmt"
+import (
+	"fmt"
+
+	"wanggj.com/abyss/collector"
+)
 
 type RawMessage struct {
 	unmarshal func(interface{}) error
@@ -17,15 +21,15 @@ func (msg *RawMessage) Unmarshal(v interface{}) error {
 
 // the StateXXXAnaOpt is used to generate analyzer
 type StatefulAnaOpt interface {
-	NewStatefulAna() (StatefulAnalyzer, error)
+	NewStatefulAna() (collector.StatefulAnalyzer, error)
 }
 
 type StatelessAnaOpt interface {
-	NewStatelessAna() (StatelessAnalyzer, error)
+	NewStatelessAna() (collector.StatelessAnalyzer, error)
 }
 
 type AnaConfig struct {
-	Type string     `yamal:"name"`
+	Type string     `yaml:"type"`
 	Opt  RawMessage `yaml:"opt"`
 }
 
@@ -37,10 +41,25 @@ func GetAnaOptFromConfig(config AnaConfig) (interface{}, error) {
 	// the code is like:
 	//
 	// opt := anaOPt{} // correct type
+	// err := config.Opt.Unmarshal(&opt)
 	// if err != nil {
 	// 	return nil, err
 	// }
 	// return opt, nil
+	case "aggregation":
+		aggcfg := AggregationOpts{}
+		err := config.Opt.Unmarshal(&aggcfg)
+		if err != nil {
+			return nil, err
+		}
+		return aggcfg, nil
+	case "quantile":
+		quancfg := QuantileOpts{}
+		err := config.Opt.Unmarshal(&quancfg)
+		if err != nil {
+			return nil, err
+		}
+		return quancfg, nil
 	default:
 		err := fmt.Errorf("Unrecongnized config type %q", config.Type)
 		return nil, err

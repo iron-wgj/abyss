@@ -33,10 +33,10 @@ type Metric interface {
 // optional and can safely be left at their zero value, although it is strongly
 // encouraged to set a Help string.
 type Opts struct {
-	Name        string
-	Help        string
-	ConstLabels Labels
-	Level       MetricLevel
+	Name        string      `yaml:"name"`
+	Help        string      `yaml:"help"`
+	ConstLabels Labels      `yaml:"constLabels"`
+	Level       MetricLevel `yaml:"level"`
 }
 
 type timeStampMetric struct {

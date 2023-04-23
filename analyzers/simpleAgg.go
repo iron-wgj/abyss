@@ -14,7 +14,7 @@ var AggregationFunc = map[string]aggFunc{
 	"min": min,
 }
 
-type aggFunc func(*collector.Desc, []*collector.DataPair, chan<- collector.Metric)
+type aggFunc func(*Aggregation, []*collector.DataPair, chan<- collector.Metric)
 
 // AnaMax is a stateless analyzer, it find the maximal value
 // in past Duration.
@@ -35,8 +35,9 @@ func (a *Aggregation) Analyze(data []*collector.DataPair, ch chan<- collector.Me
 		return
 	}
 	a.mtx.Lock()
-	oldestTime := time.Now().Add(a.Duration)
+	oldestTime := time.Now().Add(-a.Duration)
 	if oldestTime.Before(a.lastAnalyze) {
+		//fmt.Println("not enough interval")
 		a.mtx.Unlock()
 		return
 	}
@@ -47,15 +48,15 @@ func (a *Aggregation) Analyze(data []*collector.DataPair, ch chan<- collector.Me
 	for ; start > 0 && data[start-1].Timestamp.After(oldestTime); start-- {
 	}
 	if start < len(data) && a.aggFunc != nil {
-		a.aggFunc(a.Desc, data[start:], ch)
+		a.aggFunc(a, data[start:], ch)
 	}
 }
 
 // type AnaMaxOpt is used to initialize the AnaMax in func NewAnaMax
 type AggregationOpts struct {
-	collector.Opts
-	Duration time.Duration `yaml:"duration"`
-	Type     string
+	collector.Opts `yaml:"desc"`
+	Duration       time.Duration `yaml:"duration"`
+	Type           string        `yaml:"type"`
 }
 
 func NewAggregation(opt *AggregationOpts) (*Aggregation, error) {
@@ -78,11 +79,12 @@ func NewAggregation(opt *AggregationOpts) (*Aggregation, error) {
 	}
 	newLabels["analyzer"] = opt.Type
 	newLabels["analyzer_duration"] = opt.Duration.Abs().String()
-	desc := collector.NewDesc(opt.Name, opt.Help, opt.Level, nil, opt.ConstLabels)
+	desc := collector.NewDesc(opt.Name, opt.Help, opt.Level, nil, newLabels)
 	return &Aggregation{
 		Desc:        desc,
 		Duration:    opt.Duration,
 		lastAnalyze: time.Now(),
+		aggFunc:     AggregationFunc[opt.Type],
 	}, nil
 }
 
@@ -90,7 +92,7 @@ func (a *AggregationOpts) NewStatelessAna() (collector.StatelessAnalyzer, error)
 	return NewAggregation(a)
 }
 
-func max(desc *collector.Desc, data []*collector.DataPair, ch chan<- collector.Metric) {
+func max(a *Aggregation, data []*collector.DataPair, ch chan<- collector.Metric) {
 	idx := len(data) - 1
 	max := data[idx]
 	idx--
@@ -101,11 +103,12 @@ func max(desc *collector.Desc, data []*collector.DataPair, ch chan<- collector.M
 		}
 	}
 	cm, err := collector.NewConstMetric(
-		desc,
+		a.Desc,
 		collector.GaugeValue,
 		max.Value,
 	)
 	if err != nil {
+		//fmt.Println(err)
 		glog.Error(err)
 		return
 	}
@@ -115,7 +118,7 @@ func max(desc *collector.Desc, data []*collector.DataPair, ch chan<- collector.M
 	)
 }
 
-func min(desc *collector.Desc, data []*collector.DataPair, ch chan<- collector.Metric) {
+func min(a *Aggregation, data []*collector.DataPair, ch chan<- collector.Metric) {
 	idx := len(data) - 1
 	max := data[idx]
 	idx--
@@ -126,7 +129,7 @@ func min(desc *collector.Desc, data []*collector.DataPair, ch chan<- collector.M
 		}
 	}
 	cm, err := collector.NewConstMetric(
-		desc,
+		a.Desc,
 		collector.GaugeValue,
 		max.Value,
 	)
@@ -139,3 +142,24 @@ func min(desc *collector.Desc, data []*collector.DataPair, ch chan<- collector.M
 		cm,
 	)
 }
+
+//func quantile(a *Aggregation, data []*collector.DataPair, ch chan<- collector.Metric) {
+//	if len(a.QuaTarget) == 0 || len(data) == 0 {
+//		return
+//	}
+//	q := qua.NewTargeted(a.QuaTarget...)
+//	for _, d := range data {
+//		q.Insert(d.Value)
+//	}
+//	for _, tar := range a.QuaTarget {
+//		cm, err := collector.NewConstMetric(
+//			a.Desc,
+//			collector.GaugeValue,
+//			q.Query(tar),
+//		)
+//		if err != nil {
+//			glog.Error(err)
+//		}
+//		ch <- collector.NewTimeStampMetric(time.Now(), cm)
+//	}
+//}

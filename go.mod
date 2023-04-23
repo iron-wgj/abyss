@@ -10,4 +10,9 @@ require (
 	google.golang.org/protobuf v1.29.1
 )
 
-require gopkg.in/yaml.v3 v3.0.1
+require github.com/bmizerany/perks v0.0.0-20230307044200-03f9df79da1e
+
+require (
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
