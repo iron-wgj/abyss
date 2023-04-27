@@ -3,16 +3,21 @@ package collector_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
+	"gopkg.in/yaml.v2"
 	"wanggj.com/abyss/collector"
+	"wanggj.com/abyss/collector/pushFunc"
 	"wanggj.com/abyss/module"
 )
 
 type testCollectFunc struct{}
 
-func (tc *testCollectFunc) Push(ch chan<- *collector.DataPair, ctx context.Context) {
+func (tc *testCollectFunc) SetDuration(d time.Duration) {}
+
+func (tc *testCollectFunc) Push(ch chan<- *pushFunc.DataPair, ctx context.Context) {
 	dur, err := time.ParseDuration("0.2s")
 	if err != nil {
 		return
@@ -22,10 +27,11 @@ func (tc *testCollectFunc) Push(ch chan<- *collector.DataPair, ctx context.Conte
 	for {
 		select {
 		case t := <-timer.C:
-			dp := collector.NewDataPair(value, t)
+			dp := pushFunc.NewDataPair(value, t)
 			value++
 			ch <- dp
 		case <-ctx.Done():
+			close(ch)
 			fmt.Println("================== the pusher is closed =======")
 			return
 		}
@@ -51,7 +57,7 @@ func NewTestAna() *testAna {
 func (ta *testAna) Describe(ch chan<- *collector.Desc) {
 	ch <- ta.desc
 }
-func (ta *testAna) Analyze(data []*collector.DataPair, ch chan<- collector.Metric) {
+func (ta *testAna) Analyze(data []*pushFunc.DataPair, ch chan<- collector.Metric) {
 	for _, dp := range data {
 		// TODO: write a function that generate ConstMetric, and transipoint
 		// dp into ConstMetric
@@ -201,4 +207,75 @@ func TestPusherOOT(t *testing.T) {
 		tp.Stop()
 		t.Log("the test end.")
 	})
+}
+
+var pusherYaml = `
+desc:
+  name: pusher
+  help: this is a pusher
+  level: 2
+  constLabels:
+    aaa: aaa
+    bbb: bbb
+selfcol: true
+valuetype: 2
+inv: 10s
+pushFunc: procinfo:cpuUsage
+pfinv: 300ms
+`
+
+func TestPusherFromYaml(t *testing.T) {
+	var po collector.PusherOpts
+	err := yaml.Unmarshal([]byte(pusherYaml), &po)
+	if err != nil {
+		t.Error(err)
+	}
+
+	fmt.Println(po)
+
+	pu, err := collector.NewPusherFromOpts(uint32(os.Getpid()), po, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	descChan := make(chan *collector.Desc, 5)
+	mtcChan := make(chan collector.Metric, 5)
+
+	pu.Start()
+
+	go func() {
+		pu.Describe(descChan)
+		close(descChan)
+	}()
+	for desc := range descChan {
+		fmt.Println(desc)
+	}
+
+	action := 0
+	go func() {
+		for i := 0; i < 10000; i++ {
+			action++
+		}
+	}()
+
+	time.Sleep(time.Duration(1) * time.Second)
+	go func() {
+		pu.Collect(mtcChan)
+		close(mtcChan)
+	}()
+
+	count := 0
+	for m := range mtcChan {
+		count++
+		mm, err := m.Write()
+		if err != nil {
+			t.Error(err)
+		}
+		fmt.Println(mm.String())
+	}
+	if count != 3 {
+		t.Errorf("Expect %d metrics, got %d.", 2, count)
+	}
+
+	pu.Stop()
 }

@@ -7,40 +7,19 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"wanggj.com/abyss/collector/pushFunc"
 )
 
 const (
 	dataReceiverLen = 10
 )
 
-// DataPair is used to storage data collected by Pusher
-type DataPair struct {
-	Value     float64
-	Timestamp time.Time
-}
-
-func NewDataPair(v float64, t time.Time) *DataPair {
-	return &DataPair{Value: v, Timestamp: t}
-}
-
-// CollectFunc will be used to create a goroutine in Pusher, it receives a channel
-// and a context.
-//
-// The channel is used to receive data and received data
-// will be storaged into dataBuf. Each time Collect func is called,
-// dataBuf will be flushed into Data and data out of time will be cleared.
-//
-// context is used to close goroutine, like context.WithCancel
-type PushFunc interface {
-	Push(chan<- *DataPair, context.Context)
-}
-
 // Analyzer is used to analysis Data, an Analyzer must implement Collector
 type StatefulAnalyzer interface {
 	Collector
 
 	// Observe is used to receive new data
-	Observe(*DataPair)
+	Observe(*pushFunc.DataPair)
 }
 
 // StatelessAnalyzer is used to analysis data in a time range
@@ -49,7 +28,7 @@ type StatelessAnalyzer interface {
 	Describe(chan<- *Desc)
 	// Analyze receive data series and send Metrics into ch, the implementation
 	// must insure data series not changed
-	Analyze([]*DataPair, chan<- Metric)
+	Analyze([]*pushFunc.DataPair, chan<- Metric)
 }
 
 // Pusher is a collector that can create goroutine to collect data initiactivly.
@@ -62,22 +41,22 @@ type Pusher struct {
 	selfCol   bool      // true if Data need to be collected
 	valueType ValueType // metric type the data default chenged to
 	// Data is the data collected has been analysised
-	Data []*DataPair
+	Data []*pushFunc.DataPair
 	mtx  sync.Mutex
 
 	// dataBuf storaged data that collected from last time Collect called
-	dataBuf []*DataPair
+	dataBuf []*pushFunc.DataPair
 	bufMtx  sync.Mutex
 
 	// data receiver is a channel used to collect data from cf, its length
 	// is dataReceiverLen
-	receiver chan *DataPair
+	receiver chan *pushFunc.DataPair
 
 	// CollectFunc will be used in Start
-	pf     PushFunc
+	pf     pushFunc.PushFunc
 	cancel context.CancelFunc
 
-	// stateful analyzer need to observe new data each time a new DataPair
+	// stateful analyzer need to observe new data each time a new pushFunc.DataPair
 	// is pushed.
 	StatefulAna []StatefulAnalyzer
 	// stateless analyzer analyze Data each time Collecte func is referenced
@@ -94,7 +73,7 @@ func NewPusher(
 	desc *Desc,
 	selfCol bool,
 	valueType ValueType,
-	pf PushFunc,
+	pf pushFunc.PushFunc,
 	statefulAnas []StatefulAnalyzer,
 	statelessAnas []StatelessAnalyzer,
 	tr time.Duration,
@@ -107,8 +86,8 @@ func NewPusher(
 		Desc:         desc,
 		selfCol:      selfCol,
 		valueType:    valueType,
-		Data:         make([]*DataPair, 0),
-		dataBuf:      make([]*DataPair, 0),
+		Data:         make([]*pushFunc.DataPair, 0),
+		dataBuf:      make([]*pushFunc.DataPair, 0),
 		pf:           pf,
 		StatefulAna:  statefulAnas,
 		StatelessAna: statelessAnas,
@@ -138,7 +117,7 @@ func (p *Pusher) Start() {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	p.cancel = cancelFunc
-	p.receiver = make(chan *DataPair, dataReceiverLen)
+	p.receiver = make(chan *pushFunc.DataPair, dataReceiverLen)
 	go p.pf.Push(p.receiver, ctx)
 
 	go p.receive()
@@ -146,6 +125,7 @@ func (p *Pusher) Start() {
 	p.closed = false
 }
 
+// Stop the Pusher, p.receiver channel must be closed by pushFunc
 func (p *Pusher) Stop() {
 	p.mtx.Lock()
 	fmt.Println("======= Stop the pusher ======")
@@ -158,9 +138,8 @@ func (p *Pusher) Stop() {
 	p.cancel()
 
 	p.closed = true
-	close(p.receiver)
-	for range p.receiver {
-	}
+	// for range p.receiver {
+	// }
 }
 
 func (p *Pusher) Describe(ch chan<- *Desc) {
@@ -176,7 +155,7 @@ func (p *Pusher) Describe(ch chan<- *Desc) {
 }
 
 // selfCollec is used to collect raw data of pusher
-func (p *Pusher) selfCollect(data []*DataPair, ch chan<- Metric) {
+func (p *Pusher) selfCollect(data []*pushFunc.DataPair, ch chan<- Metric) {
 	for _, dp := range data {
 		cm, err := NewConstMetric(
 			p.Desc,
@@ -184,6 +163,7 @@ func (p *Pusher) selfCollect(data []*DataPair, ch chan<- Metric) {
 			dp.Value,
 		)
 		if err != nil {
+			fmt.Println(err)
 			glog.Error(err)
 			continue
 		}
@@ -211,7 +191,7 @@ func (p *Pusher) Collect(ch chan<- Metric) {
 
 	p.bufMtx.Lock()
 	tmp := p.dataBuf
-	p.dataBuf = make([]*DataPair, 0, len(tmp))
+	p.dataBuf = make([]*pushFunc.DataPair, 0, len(tmp))
 	p.bufMtx.Unlock()
 
 	timeUpBound := time.Now().Add(-p.TimeRange)
@@ -242,4 +222,98 @@ func (p *Pusher) Collect(ch chan<- Metric) {
 	wg.Wait()
 	p.mtx.Unlock()
 	return
+}
+
+// /////////////////////////////////
+// Pusher options, used for Pusher initialization
+type PusherOpts struct {
+	Opts      `yaml:"desc"`
+	SelfCol   bool   `yaml:"selfcol"`
+	ValueType int    `yaml:"valuetype"`
+	Inv       string `yaml:"inv"`
+	Pf        string `yaml:"pushFunc"`
+	PfInv     string `yaml:"pfinv"`
+}
+
+type PusherInitErr struct {
+	err error
+}
+
+func (pe *PusherInitErr) Error() string {
+	if pe.err == nil {
+		return ""
+	}
+	ret := fmt.Sprintf("Init Pusher error: %s", pe.err.Error())
+	return ret
+}
+
+func NewPusherInitErr(err error) error {
+	return &PusherInitErr{
+		err: err,
+	}
+}
+
+func NewPusherFromOpts(
+	pid uint32,
+	opt PusherOpts,
+	sla []StatelessAnalyzer,
+	sfa []StatefulAnalyzer,
+) (*Pusher, error) {
+	desc := NewDesc(
+		opt.Name,
+		opt.Help,
+		opt.Level,
+		nil,
+		opt.ConstLabels,
+	)
+	if desc == nil {
+		return nil, NewPusherInitErr(fmt.Errorf("Invalid desc opts."))
+	}
+	if opt.ValueType <= 0 || opt.ValueType >= 3 {
+		return nil, NewPusherInitErr(
+			fmt.Errorf(
+				"Invalid Pusher ValueType %d, name: %s.",
+				opt.ValueType,
+				opt.Name,
+			),
+		)
+	}
+	inv, err := time.ParseDuration(opt.Inv)
+	if err != nil {
+		return nil, NewPusherInitErr(
+			fmt.Errorf("Init Pusher error: %s when init opt.Inv.", err.Error()),
+		)
+	}
+	pfinv, err := time.ParseDuration(opt.PfInv)
+	if err != nil {
+		return nil, NewPusherInitErr(
+			fmt.Errorf("Init Pusher error: %s when init opt.PfInv.", err.Error()),
+		)
+	}
+
+	if pfinv < time.Millisecond*100 || pfinv > time.Second*5 {
+		return nil, NewPusherInitErr(
+			fmt.Errorf(
+				"pfInv illegal, must between 100ms and 5s, got %s.",
+				pfinv.String(),
+			),
+		)
+	}
+
+	pf, err := pushFunc.NewPushFunc(pid, opt.Pf, pfinv)
+	if err != nil {
+		return nil, fmt.Errorf("Init Pusher error: %s when init pushFunc", err.Error())
+	}
+
+	pusher := NewPusher(
+		desc,
+		opt.SelfCol,
+		ValueType(opt.ValueType),
+		pf,
+		sfa,
+		sla,
+		inv,
+	)
+
+	return pusher, nil
 }
