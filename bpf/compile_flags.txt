@@ -1,0 +1,5 @@
+-g
+-O2
+-c
+--target=bpf
+-I../include
