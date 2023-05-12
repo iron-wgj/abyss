@@ -42,8 +42,10 @@ func populateMetric(
 	t ValueType,
 	v float64,
 	labelPairs []*module.LabelPair,
+	priority uint32,
 	m *module.Metric,
 ) error {
+	m.Priority = proto.Uint32(priority)
 	m.Label = labelPairs
 	switch t {
 	case CounterValue:
@@ -74,6 +76,7 @@ func NewConstMetric(
 		valueType,
 		value,
 		MakeLabelPairs(desc),
+		desc.priority,
 		metric,
 	); err != nil {
 		return nil, err

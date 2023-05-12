@@ -47,6 +47,7 @@ func NewTestAna() *testAna {
 		"testAna",
 		"testAna",
 		collector.LevelLog,
+		234,
 		nil,
 		collector.Labels{"a": "a"},
 	)
@@ -78,6 +79,7 @@ func TestPusher(t *testing.T) {
 		"test",
 		"test",
 		collector.LevelInfo,
+		234,
 		nil,
 		collector.Labels{"a": "a"},
 	)
@@ -154,6 +156,7 @@ func TestPusherOOT(t *testing.T) {
 		"test",
 		"test",
 		collector.LevelInfo,
+		234,
 		nil,
 		collector.Labels{"a": "a"},
 	)
@@ -215,6 +218,7 @@ desc:
   name: pusher
   help: this is a pusher
   level: 2
+  priority: 234,
   constLabels:
     aaa: aaa
     bbb: bbb
@@ -229,6 +233,7 @@ desc:
   name: pusher
   help: this is a pusher
   level: 2
+  priority: 234,
   constLabels:
     aaa: aaa
     bbb: bbb

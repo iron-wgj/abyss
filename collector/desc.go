@@ -43,9 +43,9 @@ type Desc struct {
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
 	id uint64
-	// level represents the importance of the Metric, Its possible value is among
-	// MetricLevel.
-	level MetricLevel
+	// priority is represent the importance of metric, which is a integer between
+	//0 and 65535
+	priority uint32
 	// err is an error that occurred during construction. It is reported on
 	// registration time.
 	err error
@@ -54,11 +54,12 @@ type Desc struct {
 // NewDesc return a new struct Desc. Desc contains constLabels, which is unchangable
 // during collection, and variableLabels whose value is changable. The label name of
 // both type of labels shoud not duplicate.
-func NewDesc(name, help string, level MetricLevel, variableLabels Labels, constLabels Labels) *Desc {
+func NewDesc(name, help string, level MetricLevel, pritority uint16, variableLabels Labels, constLabels Labels) *Desc {
 	d := &Desc{
 		name:           name,
 		help:           help,
 		variableLabels: variableLabels,
+		priority:       (uint32(level) << 16) | uint32(pritority),
 	}
 
 	// check level is legal
@@ -132,9 +133,10 @@ func (d *Desc) String() string {
 		)
 	}
 	return fmt.Sprintf(
-		"Desc{name: %q, help %q, constLabels: {%s}, variableLabels: %v}",
+		"Desc{name: %q, help %q, priority %d, constLabels: {%s}, variableLabels: %v}",
 		d.name,
 		d.help,
+		d.priority,
 		strings.Join(lpStrings, ","),
 		d.variableLabels,
 	)

@@ -11,6 +11,7 @@ func TestConstSummary(t *testing.T) {
 		"cs",
 		"this is test for constsummary",
 		collector.LevelError,
+		234,
 		nil,
 		collector.Labels{
 			"pid":  "aaaa",

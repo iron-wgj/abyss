@@ -116,6 +116,7 @@ func NewQuatileAna(q *QuantileOpts) (*QuantileAnalyzer, error) {
 		q.Name,
 		q.Help,
 		q.Level,
+		q.Priority,
 		nil,
 		newLabels,
 	)

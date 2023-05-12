@@ -265,6 +265,7 @@ func NewPusherFromOpts(
 		opt.Name,
 		opt.Help,
 		opt.Level,
+		opt.Priority,
 		nil,
 		opt.ConstLabels,
 	)

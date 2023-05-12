@@ -9,6 +9,7 @@ func TestNewDesc(t *testing.T) {
 		"ssss",
 		"ssss",
 		LevelInfo,
+		234,
 		Labels{"a": "aaaa"},
 		Labels{"b": "bbbb"},
 	)
@@ -20,6 +21,7 @@ func TestNewDescDupLabelName(t *testing.T) {
 		"ssss",
 		"ssss",
 		LevelInfo,
+		234,
 		Labels{"a": "aaaa"},
 		Labels{"a": "bbbb"},
 	)

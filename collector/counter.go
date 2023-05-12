@@ -34,6 +34,7 @@ func NewCounter(opts CounterOpts) Counter {
 		opts.Name,
 		opts.Help,
 		opts.Level,
+		opts.Priority,
 		nil,
 		opts.ConstLabels,
 	)
@@ -51,7 +52,13 @@ func (c *counter) Desc() *Desc {
 func (c *counter) Write() (*module.Metric, error) {
 	result := &module.Metric{}
 	c.mtx.RLock()
-	err := populateMetric(CounterValue, float64(c.value), c.labelPairs, result)
+	err := populateMetric(
+		CounterValue,
+		float64(c.value),
+		c.labelPairs,
+		c.desc.priority,
+		result,
+	)
 	c.mtx.RUnlock()
 	return result, err
 }

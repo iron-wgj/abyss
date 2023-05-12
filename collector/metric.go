@@ -37,6 +37,7 @@ type Opts struct {
 	Help        string      `yaml:"help"`
 	ConstLabels Labels      `yaml:"constLabels"`
 	Level       MetricLevel `yaml:"level"`
+	Priority    uint16      `yaml:"priority"`
 }
 
 type timeStampMetric struct {

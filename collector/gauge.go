@@ -35,6 +35,7 @@ func NewGauge(opts GaugeOpts) Gauge {
 		opts.Name,
 		opts.Help,
 		opts.Level,
+		opts.Priority,
 		nil,
 		opts.ConstLabels,
 	)
@@ -62,7 +63,13 @@ func (g *gauge) Write() (*module.Metric, error) {
 	result := &module.Metric{}
 	g.mtx.RLock()
 	defer g.mtx.RUnlock()
-	if err := populateMetric(GaugeValue, float64(g.value), g.labelPairs, result); err != nil {
+	if err := populateMetric(
+		GaugeValue,
+		float64(g.value),
+		g.labelPairs,
+		g.desc.priority,
+		result,
+	); err != nil {
 		return nil, err
 	}
 	return result, nil

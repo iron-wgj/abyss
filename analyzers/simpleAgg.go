@@ -78,7 +78,14 @@ func NewAggregation(opt *AggregationOpts) (*Aggregation, error) {
 		newLabels[n] = v
 	}
 	newLabels["analyzer"] = opt.Type
-	desc := collector.NewDesc(opt.Name, opt.Help, opt.Level, nil, newLabels)
+	desc := collector.NewDesc(
+		opt.Name,
+		opt.Help,
+		opt.Level,
+		opt.Priority,
+		nil,
+		newLabels,
+	)
 	return &Aggregation{
 		Desc:        desc,
 		Duration:    opt.Duration,

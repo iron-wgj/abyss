@@ -11,6 +11,7 @@ func TestCounterAdd(t *testing.T) {
 		Help:        "test help",
 		ConstLabels: Labels{"a": "1", "b": "2"},
 		Level:       LevelLog,
+		Priority:    234,
 	}).(*counter)
 	expectedValue := counter.value
 	counter.Inc()
@@ -34,7 +35,7 @@ func TestCounterAdd(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 
-	if expected, got := fmt.Sprintf("label:{name:\"a\" value:\"1\"} label:{name:\"b\" value:\"2\"} counter:{value:%d}", expectedValue), m.String(); expected != got {
+	if expected, got := fmt.Sprintf("label:{name:\"a\" value:\"1\"} label:{name:\"b\" value:\"2\"} counter:{value:%d} priority:131306", expectedValue), m.String(); expected != got {
 		t.Log(got)
 		t.Errorf("Expected %q, got %q.", expected, got)
 	}
@@ -46,6 +47,7 @@ func TestCounterParell(t *testing.T) {
 		Help:        "test help",
 		ConstLabels: Labels{"a": "1", "b": "2"},
 		Level:       LevelLog,
+		Priority:    234,
 	}).(*counter)
 	expectedValue := counter.value
 	t.Parallel()

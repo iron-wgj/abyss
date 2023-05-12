@@ -33,8 +33,9 @@ func (cs *ConstSummary) Write() (*module.Metric, error) {
 	sum.Quantile = qs
 
 	return &module.Metric{
-		Label:   cs.desc.constLabelPairs,
-		Summary: sum,
+		Label:    cs.desc.constLabelPairs,
+		Priority: proto.Uint32(cs.desc.priority),
+		Summary:  sum,
 	}, nil
 }
 

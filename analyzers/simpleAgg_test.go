@@ -14,9 +14,10 @@ var (
 	testCfg = map[string]*analyzer.AggregationOpts{
 		"max": {
 			Opts: collector.Opts{
-				Name:  "maxAgg",
-				Help:  "this is max",
-				Level: collector.LevelInfo,
+				Name:     "maxAgg",
+				Help:     "this is max",
+				Level:    collector.LevelInfo,
+				Priority: 222,
 				ConstLabels: collector.Labels{
 					"a": "a",
 					"b": "b",

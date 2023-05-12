@@ -2,6 +2,7 @@ package analyzer_test
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"gopkg.in/yaml.v2"
@@ -24,6 +25,7 @@ analyzers:
       name: max
       help: this is a simple aggregation of max
       level: 3
+      priority: 222
       constLabels:
         pid: 34567
         func: aaaa
@@ -35,6 +37,7 @@ analyzers:
       name: min
       help: this is a simple aggregation of min
       level: 3
+      priority: 222
       constLabels:
         pid: 2345545
         func: bbbb
@@ -49,6 +52,7 @@ analyzers:
       name: quantile_test
       help: this is a quantile analyzer test
       level: 2
+      priority: 222
       constLabels:
         pid: 2222
         name: 3333
@@ -62,6 +66,7 @@ analyzers:
       name: "quantile_test"
       help: "this is a quantile analyzer test"
       level: 2
+      priority: 222
       constLabels:
         pid: 2222
         name: 3333
@@ -91,12 +96,12 @@ func TestAggregationConfig(t *testing.T) {
 		}
 
 		fmt.Println(ram)
-		opt, ok := ram.(analyzer.AggregationOpts)
+		opt, ok := ram.(*analyzer.AggregationOpts)
 		if !ok {
-			t.Errorf("When resolve %dth aggregation config, didn't got right type.", idx)
+			t.Errorf("When resolve %dth aggregation config, didn't got right type: %v.", idx, reflect.TypeOf(ram))
 		}
 
-		agg, err := analyzer.NewAggregation(&opt)
+		agg, err := analyzer.NewAggregation(opt)
 		if err != nil {
 			t.Errorf("Can't get aggregation from opt, error: %s", err.Error())
 		}
@@ -126,13 +131,13 @@ func TestQuantileConfig(t *testing.T) {
 			)
 		}
 
-		opt, ok := ram.(analyzer.QuantileOpts)
+		opt, ok := ram.(*analyzer.QuantileOpts)
 		if !ok {
 			t.Errorf("When resolve %dth quantile config, didn't got right type.", idx)
 		}
 		fmt.Println(opt)
 
-		agg, err := analyzer.NewQuatileAna(&opt)
+		agg, err := analyzer.NewQuatileAna(opt)
 		if err != nil {
 			t.Errorf("Can't get quantile analyzer from opt, error: %s", err.Error())
 		}
