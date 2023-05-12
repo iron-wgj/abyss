@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/glog"
 	"wanggj.com/abyss/collector"
+	"wanggj.com/abyss/collector/pushFunc"
 )
 
 var AggregationFunc = map[string]aggFunc{
@@ -14,7 +15,7 @@ var AggregationFunc = map[string]aggFunc{
 	"min": min,
 }
 
-type aggFunc func(*Aggregation, []*collector.DataPair, chan<- collector.Metric)
+type aggFunc func(*Aggregation, []*pushFunc.DataPair, chan<- collector.Metric)
 
 // AnaMax is a stateless analyzer, it find the maximal value
 // in past Duration.
@@ -30,14 +31,13 @@ func (a *Aggregation) Describe(ch chan<- *collector.Desc) {
 	ch <- a.Desc
 }
 
-func (a *Aggregation) Analyze(data []*collector.DataPair, ch chan<- collector.Metric) {
+func (a *Aggregation) Analyze(data []*pushFunc.DataPair, ch chan<- collector.Metric) {
 	if len(data) <= 0 {
 		return
 	}
 	a.mtx.Lock()
 	oldestTime := time.Now().Add(-a.Duration)
 	if oldestTime.Before(a.lastAnalyze) {
-		//fmt.Println("not enough interval")
 		a.mtx.Unlock()
 		return
 	}
@@ -78,7 +78,6 @@ func NewAggregation(opt *AggregationOpts) (*Aggregation, error) {
 		newLabels[n] = v
 	}
 	newLabels["analyzer"] = opt.Type
-	newLabels["analyzer_duration"] = opt.Duration.Abs().String()
 	desc := collector.NewDesc(opt.Name, opt.Help, opt.Level, nil, newLabels)
 	return &Aggregation{
 		Desc:        desc,
@@ -92,7 +91,7 @@ func (a *AggregationOpts) NewStatelessAna() (collector.StatelessAnalyzer, error)
 	return NewAggregation(a)
 }
 
-func max(a *Aggregation, data []*collector.DataPair, ch chan<- collector.Metric) {
+func max(a *Aggregation, data []*pushFunc.DataPair, ch chan<- collector.Metric) {
 	idx := len(data) - 1
 	max := data[idx]
 	idx--
@@ -118,7 +117,7 @@ func max(a *Aggregation, data []*collector.DataPair, ch chan<- collector.Metric)
 	)
 }
 
-func min(a *Aggregation, data []*collector.DataPair, ch chan<- collector.Metric) {
+func min(a *Aggregation, data []*pushFunc.DataPair, ch chan<- collector.Metric) {
 	idx := len(data) - 1
 	max := data[idx]
 	idx--

@@ -28,7 +28,7 @@ type NewProcMsg struct {
 	Pid      uint32
 	Ppid     uint32
 	Filename string
-	Argv     []string
+	Argv     [][]byte
 }
 
 type ExitProcMsg struct {
@@ -53,11 +53,11 @@ func DecodeToNewProcMsg(msg []byte) (*NewProcMsg, error) {
 		Pid:      binary.LittleEndian.Uint32(msg[:4]),
 		Ppid:     binary.LittleEndian.Uint32(msg[4:8]),
 		Filename: string(msg[8 : 8+MaxFileNameLen]),
-		Argv:     make([]string, MaxArgvNum),
+		Argv:     make([][]byte, MaxArgvNum),
 	}
 	for i := 0; i < MaxArgvNum; i++ {
 		startOff := 8 + MaxFileNameLen + i*MaxArgvLen
-		res.Argv[i] = string(msg[startOff : startOff+MaxArgvLen])
+		res.Argv[i] = msg[startOff : startOff+MaxArgvLen]
 	}
 	return res, nil
 }

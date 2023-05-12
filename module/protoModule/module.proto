@@ -66,6 +66,7 @@ message Metric {
 	optional Summary summary = 5;
 	optional Histogram histogram = 6;
 	optional google.protobuf.Timestamp timestamp = 7;
+	optional uint32 level = 8;
 }
 
 message MetricFamily {

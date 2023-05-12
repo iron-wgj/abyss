@@ -9,6 +9,7 @@ import (
 
 	analyzer "wanggj.com/abyss/analyzers"
 	"wanggj.com/abyss/collector"
+	"wanggj.com/abyss/collector/pushFunc"
 )
 
 var (
@@ -26,15 +27,15 @@ var (
 	}
 )
 
-func generateRandomData(min, max float64, length int) []*collector.DataPair {
+func generateRandomData(min, max float64, length int) []*pushFunc.DataPair {
 	min, max = math.Abs(min), math.Abs(max)
 	if min > max {
 		min, max = max, min
 	}
-	result := make([]*collector.DataPair, length, length)
+	result := make([]*pushFunc.DataPair, length, length)
 	for i := 0; i < length; i++ {
 		rf := min + rand.Float64()*(max-min)
-		result[i] = &collector.DataPair{
+		result[i] = &pushFunc.DataPair{
 			Value:     rf,
 			Timestamp: time.Now(),
 		}
@@ -43,6 +44,8 @@ func generateRandomData(min, max float64, length int) []*collector.DataPair {
 }
 
 func TestQuantile(t *testing.T) {
+	//sfat := reflect.TypeOf((*analyzer.StatefulAnaOpt)(nil)).Elem()
+	//fmt.Println(reflect.TypeOf(testOpt).ConvertibleTo(sfat))
 	slg, err := testOpt.NewStatelessAna()
 	if err != nil {
 		t.Fatal("Cannot generate quantile.")

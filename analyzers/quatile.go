@@ -5,6 +5,7 @@ import (
 
 	"github.com/bmizerany/perks/quantile"
 	"wanggj.com/abyss/collector"
+	"wanggj.com/abyss/collector/pushFunc"
 )
 
 // QuatileAnalyzer can be either stateful or stateless, depending on the
@@ -69,7 +70,7 @@ func (q *QuantileAnalyzer) Collect(ch chan<- collector.Metric) {
 	q.mtx.Unlock()
 }
 
-func (q *QuantileAnalyzer) Observe(data *collector.DataPair) {
+func (q *QuantileAnalyzer) Observe(data *pushFunc.DataPair) {
 	if q.targetNum <= 0 {
 		return
 	}
@@ -78,7 +79,7 @@ func (q *QuantileAnalyzer) Observe(data *collector.DataPair) {
 	q.mtx.Unlock()
 }
 
-func (q *QuantileAnalyzer) Analyze(data []*collector.DataPair, ch chan<- collector.Metric) {
+func (q *QuantileAnalyzer) Analyze(data []*pushFunc.DataPair, ch chan<- collector.Metric) {
 	if q.targetNum <= 0 {
 		return
 	}

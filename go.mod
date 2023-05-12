@@ -11,8 +11,10 @@ require (
 )
 
 require (
+	github.com/DataDog/ebpfbench v0.0.0-20201023201401-de7131d7ee1d
 	github.com/aquasecurity/libbpfgo/helpers v0.4.5
 	github.com/bmizerany/perks v0.0.0-20230307044200-03f9df79da1e
+	github.com/cilium/ebpf v0.10.0
 	github.com/shirou/gopsutil/v3 v3.23.3
 	gopkg.in/yaml.v2 v2.4.0
 )

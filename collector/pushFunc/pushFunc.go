@@ -20,6 +20,13 @@ type PushFunc interface {
 	Push(chan<- *DataPair, context.Context)
 }
 
+type PfOpts struct {
+	// TargetPath is used by user process monitor
+	TargetPath string
+	// symbol specify the func to trace
+	Symbol string
+}
+
 // NewPushFunc need two arguments to generate a PushFunc
 //
 // parameters:
@@ -30,12 +37,20 @@ type PushFunc interface {
 // return:
 //
 //	pointer of the pushfunc
-func NewPushFunc(pid uint32, name string, duration time.Duration) (PushFunc, error) {
+func NewPushFunc(
+	pid uint32,
+	name string,
+	duration time.Duration,
+	opt *PfOpts,
+) (PushFunc, error) {
 	fields := strings.Split(name, ":")
-	if len(fields) < 2 {
-		return nil, fmt.Errorf("PushFunc name must have format \"PfType:fieldName\".")
-	}
-
+	//if len(fields) < 2 {
+	//	return nil, fmt.Errorf("PushFunc name must have format \"PfType:fieldName\".")
+	//}
+	var (
+		pf  PushFunc = nil
+		err error    = nil
+	)
 	switch fields[0] {
 	case "procinfo":
 		if _, ok := ProcInfoFields[fields[1]]; !ok {
@@ -44,10 +59,19 @@ func NewPushFunc(pid uint32, name string, duration time.Duration) (PushFunc, err
 				fields[1],
 			)
 		}
-		pf := NewProcInfo(pid, fields[1])
-		pf.SetDuration(duration)
-		return pf, nil
+		pf = NewProcInfo(pid, fields[1])
+	case "UfuncCnt":
+		if len(fields) < 2 {
+			pf, err = nil, fmt.Errorf("UFuncCnt PushFunc must have two fields with format \"UFuncCnt:Symbol\".")
+			break
+		}
+		pf = NewUfuncCnt(pid, opt.TargetPath, fields[1])
 	default:
-		return nil, fmt.Errorf("PushFunc dose not support pfType \"%s\".", fields[0])
+		err = fmt.Errorf("PushFunc dose not support pfType \"%s\".", fields[0])
 	}
+
+	if pf != nil {
+		pf.SetDuration(duration)
+	}
+	return pf, err
 }

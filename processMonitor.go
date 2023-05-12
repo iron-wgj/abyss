@@ -47,7 +47,7 @@ func gatherMonitorProc(
 				if []byte(arg)[0] == 0 {
 					break
 				}
-				str := arg[:len(bpfMonitorFlag)]
+				str := string(arg[:len(bpfMonitorFlag)])
 				if str == bpfMonitorFlag {
 					flag = true
 					break
@@ -72,12 +72,17 @@ func parseExecMsg(msg *newProcTracing.NewProcMsg) *MonitorProc {
 		return nil
 	}
 	configPath := ""
-	for _, str := range msg.Argv {
-		if []byte(str)[0] == 0 {
+	for _, strbytes := range msg.Argv {
+		if strbytes[0] == 0 {
 			break
 		}
-		if str[:len(bpfMonitorConfigFlag)] == bpfMonitorConfigFlag {
-			configPath = str[len(bpfMonitorConfigFlag):]
+		idx := 0
+		for idx < len(strbytes) && strbytes[idx] != 0 {
+			idx++
+		}
+		if string(strbytes[:len(bpfMonitorConfigFlag)]) == bpfMonitorConfigFlag {
+			configPath = string(strbytes[len(bpfMonitorConfigFlag)+1 : idx])
+			//fmt.Println("aaa", configPath)
 		}
 	}
 	if configPath == "" {

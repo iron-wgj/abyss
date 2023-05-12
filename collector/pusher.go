@@ -128,7 +128,7 @@ func (p *Pusher) Start() {
 // Stop the Pusher, p.receiver channel must be closed by pushFunc
 func (p *Pusher) Stop() {
 	p.mtx.Lock()
-	fmt.Println("======= Stop the pusher ======")
+	//fmt.Println("======= Stop the pusher ======")
 	defer p.mtx.Unlock()
 
 	if p.closed {
@@ -209,7 +209,7 @@ func (p *Pusher) Collect(ch chan<- Metric) {
 		wg.Add(1)
 		go func(a StatelessAnalyzer) {
 			a.Analyze(p.Data, ch)
-			fmt.Println("=============Analyze end========")
+			//fmt.Println("=============Analyze end========")
 			wg.Done()
 		}(a)
 	}
@@ -259,6 +259,8 @@ func NewPusherFromOpts(
 	sla []StatelessAnalyzer,
 	sfa []StatefulAnalyzer,
 ) (*Pusher, error) {
+	// add pid into desc constlabel
+	opt.ConstLabels["PID"] = fmt.Sprint(pid)
 	desc := NewDesc(
 		opt.Name,
 		opt.Help,
@@ -300,7 +302,14 @@ func NewPusherFromOpts(
 		)
 	}
 
-	pf, err := pushFunc.NewPushFunc(pid, opt.Pf, pfinv)
+	pf, err := pushFunc.NewPushFunc(
+		pid,
+		opt.Pf,
+		pfinv,
+		&pushFunc.PfOpts{
+			TargetPath: "../bpf/test/test",
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("Init Pusher error: %s when init pushFunc", err.Error())
 	}

@@ -80,7 +80,7 @@ func TestAggregationConfig(t *testing.T) {
 	t.Logf("cfgs got %d cfg.", len(cfgs.AnaConfigs))
 
 	for idx, cfg := range cfgs.AnaConfigs {
-		ram, err := analyzer.GetAnaOptFromConfig(cfg)
+		ram, err := analyzer.GetAnaOptFromConfig(111, cfg)
 		if err != nil {
 			t.Errorf(
 				"Got error when resolve %dth config, type is %s, error: %s",
@@ -116,7 +116,7 @@ func TestQuantileConfig(t *testing.T) {
 
 	for idx, cfg := range cfgs.AnaConfigs {
 		fmt.Println(cfg)
-		ram, err := analyzer.GetAnaOptFromConfig(cfg)
+		ram, err := analyzer.GetAnaOptFromConfig(111, cfg)
 		if err != nil {
 			t.Errorf(
 				"Got error when resolve %dth config, type is %s, error: %s",
@@ -135,6 +135,105 @@ func TestQuantileConfig(t *testing.T) {
 		agg, err := analyzer.NewQuatileAna(&opt)
 		if err != nil {
 			t.Errorf("Can't get quantile analyzer from opt, error: %s", err.Error())
+		}
+		t.Log(agg)
+	}
+}
+
+func TestStatefulAnaGen(t *testing.T) {
+	var cfgs TestAnaConfigs
+	var tmpcfgs TestAnaConfigs
+
+	testConfigs := []string{yamlQuantile}
+	for _, str := range testConfigs {
+		err := yaml.Unmarshal([]byte(str), &tmpcfgs)
+		if err != nil {
+			t.Fatalf("simple Quantile config unmarshal got error: %s", err.Error())
+		}
+		cfgs.AnaConfigs = append(cfgs.AnaConfigs, tmpcfgs.AnaConfigs...)
+	}
+
+	t.Logf("cfgs got %d cfg.", len(cfgs.AnaConfigs))
+
+	for idx, cfg := range cfgs.AnaConfigs {
+		fmt.Printf("================= %dth config =========\n", idx+1)
+		ram, err := analyzer.GetAnaOptFromConfig(111, cfg)
+		if err != nil {
+			t.Errorf(
+				"Got error when resolve %dth config, type is %s, error: %s",
+				idx,
+				cfg.Type,
+				err.Error(),
+			)
+		}
+		t.Log(ram)
+
+		// sfat and ramt can be used to make sure that ram implements StatefulAnaOpt
+		//sfat := reflect.TypeOf((*analyzer.StatefulAnaOpt)(nil)).Elem()
+		//ramt := reflect.TypeOf(ram)
+		//fmt.Println(ramt)
+		//fmt.Println(sfat)
+		//fmt.Println(ramt.ConvertibleTo(sfat))
+		//fmt.Println(ramt.Implements(sfat))
+		opt, ok := ram.(analyzer.StatefulAnaOpt)
+		if !ok {
+			t.Errorf("When resolve %dth quantile config, didn't got right type.", idx+1)
+		}
+		fmt.Println(opt)
+
+		agg, err := opt.NewStatefulAna()
+		if err != nil {
+			t.Errorf("Can't get stateful analyzer from opt, error: %s", err.Error())
+		}
+		t.Log(agg)
+	}
+}
+
+// test stateless analyzer generation from configs
+func TestStatelessAnaGen(t *testing.T) {
+	var cfgs TestAnaConfigs
+	var tmpcfgs TestAnaConfigs
+
+	testConfigs := []string{yamlQuantile, yamlAggregation}
+	for _, str := range testConfigs {
+		err := yaml.Unmarshal([]byte(str), &tmpcfgs)
+		if err != nil {
+			t.Fatalf("simple Quantile config unmarshal got error: %s", err.Error())
+		}
+		cfgs.AnaConfigs = append(cfgs.AnaConfigs, tmpcfgs.AnaConfigs...)
+	}
+
+	t.Logf("cfgs got %d cfg.", len(cfgs.AnaConfigs))
+
+	for idx, cfg := range cfgs.AnaConfigs {
+		fmt.Printf("================= %dth config =========\n", idx+1)
+		ram, err := analyzer.GetAnaOptFromConfig(111, cfg)
+		if err != nil {
+			t.Errorf(
+				"Got error when resolve %dth config, type is %s, error: %s",
+				idx,
+				cfg.Type,
+				err.Error(),
+			)
+		}
+		t.Log(ram)
+
+		// sfat and ramt can be used to make sure that ram implements StatefulAnaOpt
+		//sfat := reflect.TypeOf((*analyzer.StatefulAnaOpt)(nil)).Elem()
+		//ramt := reflect.TypeOf(ram)
+		//fmt.Println(ramt)
+		//fmt.Println(sfat)
+		//fmt.Println(ramt.ConvertibleTo(sfat))
+		//fmt.Println(ramt.Implements(sfat))
+		opt, ok := ram.(analyzer.StatelessAnaOpt)
+		if !ok {
+			t.Errorf("When resolve %dth quantile config, didn't got right type.", idx+1)
+		}
+		fmt.Println(opt)
+
+		agg, err := opt.NewStatelessAna()
+		if err != nil {
+			t.Errorf("Can't get stateful analyzer from opt, error: %s", err.Error())
 		}
 		t.Log(agg)
 	}

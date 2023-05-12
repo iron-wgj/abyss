@@ -104,6 +104,14 @@ type Registry struct {
 	descIDs        map[uint64]struct{}
 }
 
+func NewRegistry() *Registry {
+	return &Registry{
+		mtx:            sync.RWMutex{},
+		collectorsByID: map[uint64]Collector{},
+		descIDs:        map[uint64]struct{}{},
+	}
+}
+
 // Registry implements Registerer.
 func (r *Registry) Register(c Collector) error {
 	var (
@@ -214,7 +222,7 @@ func (r *Registry) Gather() (map[int][]*module.MetricFamily, error) {
 	var (
 		metricChan = make(chan Metric, capMetricChan)
 		wg         sync.WaitGroup
-		errs       MultiError
+		errs       MultiError = MultiError{}
 	)
 
 	goroutineBudget := len(r.collectorsByID)
@@ -268,6 +276,7 @@ func (r *Registry) Gather() (map[int][]*module.MetricFamily, error) {
 				mc = nil
 				break
 			}
+			//fmt.Println(metric)
 			errs.Append(processMetric(metric, metricFamiliesByName))
 
 		default:
@@ -310,6 +319,7 @@ func processMetric(
 	if err != nil {
 		return fmt.Errorf("error collecting metric %v: %w", desc, err)
 	}
+	fmt.Println(mdlMetric)
 	metricFamily, ok := metricFamiliesByName[desc.name]
 	if ok {
 		// this metric desc has existed
@@ -372,5 +382,6 @@ func processMetric(
 		}
 	}
 	metricFamily.Metric = append(metricFamily.Metric, mdlMetric)
+	metricFamiliesByName[desc.name] = metricFamily
 	return nil
 }

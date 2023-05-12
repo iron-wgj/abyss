@@ -7,11 +7,12 @@ import (
 
 	analyzer "wanggj.com/abyss/analyzers"
 	"wanggj.com/abyss/collector"
+	"wanggj.com/abyss/collector/pushFunc"
 )
 
 var (
 	testCfg = map[string]*analyzer.AggregationOpts{
-		"max": &analyzer.AggregationOpts{
+		"max": {
 			Opts: collector.Opts{
 				Name:  "maxAgg",
 				Help:  "this is max",
@@ -24,7 +25,7 @@ var (
 			Duration: time.Second * 5,
 			Type:     "max",
 		},
-		"min": &analyzer.AggregationOpts{
+		"min": {
 			Opts: collector.Opts{
 				Name: "minAgg",
 				Help: "this is max",
@@ -45,11 +46,11 @@ var (
 	}
 )
 
-func generateTestData() []*collector.DataPair {
-	result := []*collector.DataPair{}
+func generateTestData() []*pushFunc.DataPair {
+	result := []*pushFunc.DataPair{}
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 500)
-		result = append(result, &collector.DataPair{Value: testData[i%4], Timestamp: time.Now()})
+		result = append(result, &pushFunc.DataPair{Value: testData[i%4], Timestamp: time.Now()})
 		//fmt.Printf("testData %d", i)
 	}
 	return result

@@ -8,13 +8,25 @@ import (
 	"time"
 )
 
+var (
+	targetPath = ""
+	symbol     = ""
+)
+
 func TestNewPushFunc(t *testing.T) {
-	testPfName := []string{"procinfo:cpuUsage", "procinfo:memUsage"}
+	testPfName := []string{"procinfo:cpuUsage", "procinfo:memUsage",
+		fmt.Sprintf("UfuncCnt:%s", symbol),
+	}
+	testPfOpts := []*PfOpts{
+		nil,
+		nil,
+		{targetPath, symbol},
+	}
 	pid := os.Getpid()
 	testDuration := time.Duration(200) * time.Millisecond
 	testInterval := time.Second
-	for _, name := range testPfName {
-		pf, err := NewPushFunc(uint32(pid), name, testDuration)
+	for idx, name := range testPfName {
+		pf, err := NewPushFunc(uint32(pid), name, testDuration, testPfOpts[idx])
 		if err != nil {
 			t.Fatal(err.Error())
 		}

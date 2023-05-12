@@ -3,20 +3,27 @@ package bpf
 import (
 	"encoding/binary"
 	"fmt"
-	"os"
 	"os/exec"
+	"testing"
 	"time"
 
+	ebh "github.com/DataDog/ebpfbench"
 	bpf "github.com/aquasecurity/libbpfgo"
 	"github.com/aquasecurity/libbpfgo/helpers"
 )
 
-var userFuncCountBPF = "./userFuncCount.bpf.o"
-var userFuncExecTimeBPF = "./userFuncExecTime.bpf.o"
-var targetBinary = "./test/test"
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go userFuncCount userFuncCount.bpf.c -- -I../include
 
-func testFuncCount(binaryPath, symbol string, dur time.Duration) {
-	fmt.Println("Start test the func count.")
+var (
+	binaryPath = "./test/test"
+	symbol     = "main.uprobeTarget"
+)
+
+func BenchmarkUprobe(b *testing.B) {
+	eb := ebh.NewEBPFBenchmark(b)
+	defer eb.Close()
+
+	// setup ebpf kprobe
 	module, err := bpf.NewModuleFromFile(userFuncCountBPF)
 	if err != nil {
 		fmt.Println(err)
@@ -43,22 +50,11 @@ func testFuncCount(binaryPath, symbol string, dur time.Duration) {
 		fmt.Println(err)
 		return
 	}
-
-	cmd := exec.Command(binaryPath)
-	err = cmd.Start()
-	if err != nil {
-		fmt.Println("can't start test binary.")
-		return
-	}
-	defer cmd.Process.Kill()
-
-	pid := cmd.Process.Pid
-	_, err = prog.AttachUprobe(pid, binaryPath, offset)
+	_, err = prog.AttachUprobe(-1, binaryPath, offset)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-
 	eventsChannel := make(chan []byte)
 	lostChannel := make(chan uint64)
 	pb, err := module.InitPerfBuf("events", eventsChannel, lostChannel, 1)
@@ -92,12 +88,27 @@ func testFuncCount(binaryPath, symbol string, dur time.Duration) {
 		}
 	}()
 
-	time.Sleep(dur)
-	stopChannel <- false
+	// profile the ebpf program
+	eb.ProfileProgram(prog.GetFd(), "userFuncCount")
+	eb.Run(func(b *testing.B) {
+		cmd := exec.Command(binaryPath)
+		err = cmd.Start()
+		if err != nil {
+			fmt.Println("can't start test binary.")
+			return
+		}
+		defer func() {
+			cmd.Process.Kill()
+			stopChannel <- true
+		}()
+		time.Sleep(time.Second * 5)
+	})
 }
 
-func testFuncDuration(binaryPath, symbol string, dur time.Duration) {
-	fmt.Println("Start test the func count.")
+func BenchmarkUprobeFuncDur(b *testing.B) {
+	eb := ebh.NewEBPFBenchmark(b)
+	defer eb.Close()
+
 	module, err := bpf.NewModuleFromFile(userFuncExecTimeBPF)
 	if err != nil {
 		fmt.Println(err)
@@ -140,6 +151,16 @@ func testFuncDuration(binaryPath, symbol string, dur time.Duration) {
 		fmt.Println(err)
 		return
 	}
+	_, err = fentry.AttachUprobe(-1, binaryPath, offset)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	_, err = fexit.AttachURetprobe(-1, binaryPath, offset)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	eventsChannel := make(chan []byte, 10)
 	lostChannel := make(chan uint64)
@@ -153,32 +174,6 @@ func testFuncDuration(binaryPath, symbol string, dur time.Duration) {
 		pb.Stop()
 		pb.Close()
 	}()
-
-	cmd := exec.Command(binaryPath)
-	err = cmd.Start()
-	if err != nil {
-		fmt.Println("can't start test binary.")
-		return
-	}
-	defer func() {
-		out, err := cmd.Output()
-		if err == nil {
-			fmt.Println(string(out))
-		}
-		cmd.Process.Kill()
-	}()
-
-	pid := cmd.Process.Pid
-	_, err = fentry.AttachUprobe(pid, binaryPath, offset)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	_, err = fexit.AttachURetprobe(pid, binaryPath, offset)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
 
 	stopChannel := make(chan bool)
 	go func() {
@@ -200,36 +195,71 @@ func testFuncDuration(binaryPath, symbol string, dur time.Duration) {
 		}
 	}()
 
-	time.Sleep(dur)
+	eb.ProfileProgram(fentry.GetFd(), "uprobeDurEntry")
+	eb.ProfileProgram(fexit.GetFd(), "uprobeDurExit")
+	eb.Run(func(b *testing.B) {
+		cmd := exec.Command(binaryPath)
+		err = cmd.Start()
+		if err != nil {
+			fmt.Println("can't start test binary.")
+			return
+		}
+		defer func() {
+			time.Sleep(time.Duration(5) * time.Second)
+			out, err := cmd.Output()
+			if err == nil {
+				fmt.Println(string(out))
+			}
+			stopChannel <- true
+			cmd.Process.Kill()
+		}()
+
+	})
 	stopChannel <- false
 }
 
-func main() {
-	binaryPath, symbol := targetBinary, "main.uprobeTarget"
-	duration := "5s"
-	monitorType := "count"
-	if len(os.Args) >= 2 && os.Args[1] == "duration" {
-		monitorType = "duration"
-	}
-	if len(os.Args) >= 3 {
-		duration = os.Args[2]
-	}
-	if len(os.Args) >= 5 {
-		binaryPath, symbol = os.Args[3], os.Args[4]
-	}
-
-	dur, err := time.ParseDuration(duration)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	switch monitorType {
-	case "count":
-		testFuncCount(binaryPath, symbol, dur)
-	case "duration":
-		testFuncDuration(binaryPath, symbol, dur)
-	default:
-		panic(fmt.Errorf("Monitor type %s is unsupported.", monitorType))
-	}
-}
+//func TestFuncCountBpf2go(t *testing.T){
+//	stopper := make(chan os.Signal, 1)
+//	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
+//
+//	if err := rlimit.RemoveMemlock(); err != nil {
+//		t.Error(err)
+//	}
+//
+//	// load compiled programs and maps into the kernel
+//	obj := userFuncCountObjects{}
+//	if err := loadUserFuncCountObjects(&obj, nil); err != nil {
+//		t.Error(err)
+//	}
+//
+//	// Open target binary file and read its symbol
+//	ex, err := link.OpenExecutable(binaryPath)
+//	if err != nil {
+//		t.Error(err)
+//	}
+//
+//	// attach bpf program to uprobe
+//	up, err := ex.Uprobe(symbol, obj.UprobeFuncCall, &link.UprobeOptions{PID: pid})
+//	if err != nil {
+//		t.Error(err)
+//	}
+//	defer up.Close()
+//
+//	rd, err := perf.NewReader(obj.Events, os.Getpagesize())
+//	if err != nil {
+//		t.Error(err)
+//	}
+//	defer rd.Close()
+//
+//	go func() {
+//		<-stopper
+//		log.Println("Received signal, exiting program..")
+//
+//		if err := rd.Close(); err != nil {
+//			log.Fatalf("closing perf event reader: %s", err)
+//		}
+//	}()
+//
+//	t.Log("Listening to events...")
+//
+//	var event userFuncCountMaps

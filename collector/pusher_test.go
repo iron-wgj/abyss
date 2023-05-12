@@ -209,7 +209,8 @@ func TestPusherOOT(t *testing.T) {
 	})
 }
 
-var pusherYaml = `
+var pusherYaml = []string{
+	`
 desc:
   name: pusher
   help: this is a pusher
@@ -222,60 +223,78 @@ valuetype: 2
 inv: 10s
 pushFunc: procinfo:cpuUsage
 pfinv: 300ms
-`
+`,
+	`
+desc:
+  name: pusher
+  help: this is a pusher
+  level: 2
+  constLabels:
+    aaa: aaa
+    bbb: bbb
+selfcol: true
+valuetype: 2
+inv: 10s
+pushFunc: UfuncCnt:main.uprobeTarget
+pfinv: 300ms
+`,
+}
 
 func TestPusherFromYaml(t *testing.T) {
 	var po collector.PusherOpts
-	err := yaml.Unmarshal([]byte(pusherYaml), &po)
-	if err != nil {
-		t.Error(err)
-	}
-
-	fmt.Println(po)
-
-	pu, err := collector.NewPusherFromOpts(uint32(os.Getpid()), po, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	descChan := make(chan *collector.Desc, 5)
-	mtcChan := make(chan collector.Metric, 5)
-
-	pu.Start()
-
-	go func() {
-		pu.Describe(descChan)
-		close(descChan)
-	}()
-	for desc := range descChan {
-		fmt.Println(desc)
-	}
-
-	action := 0
-	go func() {
-		for i := 0; i < 10000; i++ {
-			action++
-		}
-	}()
-
-	time.Sleep(time.Duration(1) * time.Second)
-	go func() {
-		pu.Collect(mtcChan)
-		close(mtcChan)
-	}()
-
-	count := 0
-	for m := range mtcChan {
-		count++
-		mm, err := m.Write()
+	for _, py := range pusherYaml {
+		t.Log(py)
+		err := yaml.Unmarshal([]byte(py), &po)
 		if err != nil {
 			t.Error(err)
 		}
-		fmt.Println(mm.String())
-	}
-	if count != 3 {
-		t.Errorf("Expect %d metrics, got %d.", 2, count)
-	}
 
-	pu.Stop()
+		fmt.Println(po)
+
+		pu, err := collector.NewPusherFromOpts(uint32(os.Getpid()), po, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		descChan := make(chan *collector.Desc, 5)
+		mtcChan := make(chan collector.Metric, 5)
+
+		pu.Start()
+
+		go func() {
+			pu.Describe(descChan)
+			close(descChan)
+		}()
+		for desc := range descChan {
+			fmt.Println(desc)
+		}
+
+		action := 0
+		go func() {
+			for i := 0; i < 10000; i++ {
+				action++
+			}
+		}()
+
+		time.Sleep(time.Duration(1) * time.Second)
+		go func() {
+			pu.Collect(mtcChan)
+			close(mtcChan)
+		}()
+
+		count := 0
+		for m := range mtcChan {
+			count++
+			mm, err := m.Write()
+			if err != nil {
+				t.Error(err)
+			}
+			fmt.Println(mm.String())
+		}
+		if count != 3 {
+			t.Errorf("Expect %d metrics, got %d.", 2, count)
+		}
+
+		pu.Stop()
+	}
 }
