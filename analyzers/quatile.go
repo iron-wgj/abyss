@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"sync"
+	"time"
 
 	"github.com/bmizerany/perks/quantile"
 	"wanggj.com/abyss/collector"
@@ -22,18 +23,18 @@ type QuantileAnalyzer struct {
 	mtx    sync.Mutex
 }
 
-func (q *QuantileAnalyzer) getResults() []collector.Metric {
+func (q *QuantileAnalyzer) getResults() collector.Metric {
 	qs := map[float64]float64{}
 	for i := 0; i < q.targetNum; i++ {
 		qs[q.Ranks[i]] = q.stream.Query(q.Ranks[i])
 	}
-	result := make([]collector.Metric, 1)
-	result[0] = collector.NewConstSummary(
+	sum := collector.NewConstSummary(
 		q.Desc,
 		q.count,
 		q.sum,
 		qs,
 	)
+	result := collector.NewTimeStampMetric(time.Now(), sum)
 
 	return result
 }
@@ -43,16 +44,14 @@ func (q *QuantileAnalyzer) Describe(ch chan<- *collector.Desc) {
 }
 
 func (q *QuantileAnalyzer) collectMetric(reset bool, ch chan<- collector.Metric) {
-	results := q.getResults()
+	result := q.getResults()
 	if reset {
 		q.stream.Reset()
 		q.count = 0
 		q.sum = 0
 	}
 
-	for _, m := range results {
-		ch <- m
-	}
+	ch <- result
 }
 
 func (q *QuantileAnalyzer) insert(value float64) {

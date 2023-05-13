@@ -139,12 +139,7 @@ func DataGather(logger *log.Logger, gatherInv time.Duration) error {
 	}()
 
 	// data Write
-	go func() {
-		for data := range dataCh {
-			fmt.Println(data)
-		}
-	}()
-
+	go InfluxWrite(logger, dataCh)
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 	select {

@@ -139,7 +139,7 @@ func NewProcRegFromConfig(pid uint32, cfg *ProcConfig) (*ProcRegistry, error) {
 	for idx := range cfg.Pusher {
 		pu, err := NewPusherFromConfig(pid, &(cfg.Pusher[idx]))
 		if err != nil {
-			fmt.Printf("New Puhser error, %s.", err.Error())
+			//fmt.Printf("New Puhser error, %s.", err.Error())
 			errs.Append(err)
 			continue
 		}
@@ -150,12 +150,12 @@ func NewProcRegFromConfig(pid uint32, cfg *ProcConfig) (*ProcRegistry, error) {
 			pu,
 		)
 		if err != nil {
-			fmt.Printf("Pusher Register error: %s.\n", err.Error())
+			//fmt.Printf("Pusher Register error: %s.\n", err.Error())
 			errs.Append(err)
 			continue
 		}
 	}
-	fmt.Println(errs.Error(), len(errs))
+	//fmt.Println(errs.Error(), len(errs))
 	return procReg, errs
 }
 
