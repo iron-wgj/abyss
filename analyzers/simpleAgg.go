@@ -15,7 +15,7 @@ var AggregationFunc = map[string]aggFunc{
 	"min": min,
 }
 
-type aggFunc func(*Aggregation, []*pushFunc.DataPair, chan<- collector.Metric)
+type aggFunc func(*Aggregation, []*pushFunc.DataPair) float64
 
 // AnaMax is a stateless analyzer, it find the maximal value
 // in past Duration.
@@ -25,6 +25,7 @@ type Aggregation struct {
 	lastAnalyze time.Time
 	mtx         sync.Mutex
 	aggFunc     aggFunc
+	alert       *Alert
 }
 
 func (a *Aggregation) Describe(ch chan<- *collector.Desc) {
@@ -48,7 +49,22 @@ func (a *Aggregation) Analyze(data []*pushFunc.DataPair, ch chan<- collector.Met
 	for ; start > 0 && data[start-1].Timestamp.After(oldestTime); start-- {
 	}
 	if start < len(data) && a.aggFunc != nil {
-		a.aggFunc(a, data[start:], ch)
+		result := a.aggFunc(a, data[start:])
+		tp := time.Now()
+		cm, err := collector.NewConstMetric(
+			a.Desc,
+			collector.GaugeValue,
+			result,
+		)
+		if err != nil {
+			glog.Error(err)
+			return
+		}
+		ch <- collector.NewTimeStampMetric(tp, cm)
+
+		if a.alert != nil && a.alert.compare(result, tp) {
+			ch <- a.alert
+		}
 	}
 }
 
@@ -57,6 +73,7 @@ type AggregationOpts struct {
 	collector.Opts `yaml:"desc"`
 	Duration       time.Duration `yaml:"duration"`
 	Type           string        `yaml:"type"`
+	Alert          string        `yaml:"alert,omitempty"`
 }
 
 func NewAggregation(opt *AggregationOpts) (*Aggregation, error) {
@@ -86,11 +103,21 @@ func NewAggregation(opt *AggregationOpts) (*Aggregation, error) {
 		nil,
 		newLabels,
 	)
+
+	alert, err := NewAlertFromStr(
+		&opt.Opts,
+		collector.Labels{"analyzer": opt.Type},
+		opt.Alert,
+	)
+	if err != nil {
+		return nil, err
+	}
 	return &Aggregation{
 		Desc:        desc,
 		Duration:    opt.Duration,
 		lastAnalyze: time.Now(),
 		aggFunc:     AggregationFunc[opt.Type],
+		alert:       alert,
 	}, nil
 }
 
@@ -98,7 +125,7 @@ func (a *AggregationOpts) NewStatelessAna() (collector.StatelessAnalyzer, error)
 	return NewAggregation(a)
 }
 
-func max(a *Aggregation, data []*pushFunc.DataPair, ch chan<- collector.Metric) {
+func max(a *Aggregation, data []*pushFunc.DataPair) float64 {
 	idx := len(data) - 1
 	max := data[idx]
 	idx--
@@ -108,45 +135,20 @@ func max(a *Aggregation, data []*pushFunc.DataPair, ch chan<- collector.Metric) 
 			max = data[idx]
 		}
 	}
-	cm, err := collector.NewConstMetric(
-		a.Desc,
-		collector.GaugeValue,
-		max.Value,
-	)
-	if err != nil {
-		//fmt.Println(err)
-		glog.Error(err)
-		return
-	}
-	ch <- collector.NewTimeStampMetric(
-		time.Now(),
-		cm,
-	)
+	return max.Value
 }
 
-func min(a *Aggregation, data []*pushFunc.DataPair, ch chan<- collector.Metric) {
+func min(a *Aggregation, data []*pushFunc.DataPair) float64 {
 	idx := len(data) - 1
-	max := data[idx]
+	min := data[idx]
 	idx--
 
 	for ; idx >= 0; idx-- {
-		if data[idx].Value < max.Value {
-			max = data[idx]
+		if data[idx].Value < min.Value {
+			min = data[idx]
 		}
 	}
-	cm, err := collector.NewConstMetric(
-		a.Desc,
-		collector.GaugeValue,
-		max.Value,
-	)
-	if err != nil {
-		glog.Error(err)
-		return
-	}
-	ch <- collector.NewTimeStampMetric(
-		time.Now(),
-		cm,
-	)
+	return min.Value
 }
 
 //func quantile(a *Aggregation, data []*collector.DataPair, ch chan<- collector.Metric) {

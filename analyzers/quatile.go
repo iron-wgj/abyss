@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 // option, but cannot be both at the same time, otherwise it will get
 // incorrect result when Collect and Analyze
 type QuantileAnalyzer struct {
-	Ranks     []float64
+	Ranks     map[float64]*Alert
 	Desc      *collector.Desc
 	targetNum int
 
@@ -23,10 +24,12 @@ type QuantileAnalyzer struct {
 	mtx    sync.Mutex
 }
 
-func (q *QuantileAnalyzer) getResults() collector.Metric {
+func (q *QuantileAnalyzer) getResults() []collector.Metric {
 	qs := map[float64]float64{}
-	for i := 0; i < q.targetNum; i++ {
-		qs[q.Ranks[i]] = q.stream.Query(q.Ranks[i])
+	result := []collector.Metric{}
+	timestamp := time.Now()
+	for k := range q.Ranks {
+		qs[k] = q.stream.Query(k)
 	}
 	sum := collector.NewConstSummary(
 		q.Desc,
@@ -34,7 +37,16 @@ func (q *QuantileAnalyzer) getResults() collector.Metric {
 		q.sum,
 		qs,
 	)
-	result := collector.NewTimeStampMetric(time.Now(), sum)
+	result = append(result, collector.NewTimeStampMetric(timestamp, sum))
+
+	for k, mv := range qs {
+		if q.Ranks[k] == nil {
+			continue
+		}
+		if q.Ranks[k].compare(mv, timestamp) {
+			result = append(result, q.Ranks[k])
+		}
+	}
 
 	return result
 }
@@ -51,7 +63,9 @@ func (q *QuantileAnalyzer) collectMetric(reset bool, ch chan<- collector.Metric)
 		q.sum = 0
 	}
 
-	ch <- result
+	for _, v := range result {
+		ch <- v
+	}
 }
 
 func (q *QuantileAnalyzer) insert(value float64) {
@@ -97,7 +111,7 @@ func (q *QuantileAnalyzer) Analyze(data []*pushFunc.DataPair, ch chan<- collecto
 // Quatile implements interface StatefulAnaOpt and StatelessAnaOpt
 type QuantileOpts struct {
 	collector.Opts `yaml:"desc"`
-	Ranks          []float64 `yaml:"targets"`
+	Ranks          map[float64]string `yaml:"targets"`
 }
 
 func NewQuatileAna(q *QuantileOpts) (*QuantileAnalyzer, error) {
@@ -110,7 +124,8 @@ func NewQuatileAna(q *QuantileOpts) (*QuantileAnalyzer, error) {
 	}
 	newLabels["analyzer"] = "Quatile"
 
-	ranks := make([]float64, len(q.Ranks), len(q.Ranks))
+	rankWithAlert := map[float64]*Alert{}
+	ranks := make([]float64, 0, len(q.Ranks))
 	desc := collector.NewDesc(
 		q.Name,
 		q.Help,
@@ -131,11 +146,24 @@ func NewQuatileAna(q *QuantileOpts) (*QuantileAnalyzer, error) {
 	// 	)
 	// 	descs = append(descs, desc)
 	// }
-	copy(ranks, q.Ranks)
+	for k, v := range q.Ranks {
+		r, err := NewAlertFromStr(
+			&q.Opts,
+			collector.Labels{
+				"quantile_rank": fmt.Sprint(k),
+			},
+			v,
+		)
+		if err != nil {
+			return nil, err
+		}
+		rankWithAlert[k] = r
+		ranks = append(ranks, k)
+	}
 	stream := quantile.NewTargeted(ranks...)
 
 	return &QuantileAnalyzer{
-		Ranks:     ranks,
+		Ranks:     rankWithAlert,
 		Desc:      desc,
 		targetNum: len(q.Ranks),
 		stream:    stream,

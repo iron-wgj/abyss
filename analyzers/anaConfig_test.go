@@ -57,9 +57,9 @@ analyzers:
         pid: 2222
         name: 3333
     targets:
-    - 0.5
-    - 0.9
-    - 0.99
+      0.5: "bigger:9.8:3"
+      0.9: "bigger:9.8:3"
+      0.99: "bigger:9.8:3"
 - type: "quantile"
   opt:
     desc:
@@ -70,7 +70,7 @@ analyzers:
       constLabels:
         pid: 2222
         name: 3333
-    targets: []
+    targets:
 `
 
 // Test aggregation

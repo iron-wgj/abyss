@@ -23,7 +23,9 @@ var (
 				"b": "b",
 			},
 		},
-		Ranks: []float64{0.5, 0.9, 0.99},
+		Ranks: map[float64]string{
+			0.9: "bigger:0.1:3",
+		},
 	}
 )
 

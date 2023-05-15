@@ -71,6 +71,7 @@ func metric2line(measurement string, m *module.Metric, mfType module.MetricType)
 	for _, l := range labels {
 		lptags = append(lptags, fmt.Sprintf("%s=%s", l.GetName(), l.GetValue()))
 	}
+	timestamp := m.GetTimestamp().AsTime().UnixNano()
 	var lpvals []string
 	switch mfType {
 	case module.MetricType_COUNTER:
@@ -85,6 +86,14 @@ func metric2line(measurement string, m *module.Metric, mfType module.MetricType)
 		lpvals = []string{fmt.Sprintf(
 			"%s=%f", "gauge", m.Gauge.GetValue(),
 		)}
+	case module.MetricType_EVENT:
+		if m.Event == nil {
+			return ""
+		}
+		lpvals = []string{
+			fmt.Sprintf("%s=%f", "event_value", m.Event.GetValue()),
+		}
+		timestamp = m.Event.GetTimestamp().AsTime().UnixNano()
 	case module.MetricType_SUMMARY:
 		if m.Summary == nil {
 			return ""
@@ -93,12 +102,11 @@ func metric2line(measurement string, m *module.Metric, mfType module.MetricType)
 		lpvals = make([]string, 0, len(qua))
 		for _, q := range qua {
 			lpvals = append(lpvals, fmt.Sprintf(
-				"quantile_%f=%f", q.GetQuantile(), q.GetValue(),
+				"quantile_%2f=%f", q.GetQuantile(), q.GetValue(),
 			))
 		}
 	}
 
-	timestamp := m.GetTimestamp().AsTime().UnixNano()
 	return fmt.Sprintf(
 		"%s,%s %s %d",
 		measurement,

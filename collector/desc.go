@@ -14,10 +14,11 @@ import (
 type MetricLevel int
 
 const (
-	LevelFault MetricLevel = 0
-	LevelError MetricLevel = 1
-	LevelLog   MetricLevel = 2
-	LevelInfo  MetricLevel = 3
+	levelNone MetricLevel = iota
+	LevelInfo
+	LevelLog
+	LevelError
+	LevelFault
 )
 
 // Desc is the descriptor used by every Metric. It is essentially
@@ -63,7 +64,7 @@ func NewDesc(name, help string, level MetricLevel, pritority uint16, variableLab
 	}
 
 	// check level is legal
-	if level < 0 || level > 3 {
+	if level < 1 || level > 4 {
 		d.err = fmt.Errorf("New Desc get illegal level, which is %d.", level)
 	}
 
@@ -140,4 +141,8 @@ func (d *Desc) String() string {
 		strings.Join(lpStrings, ","),
 		d.variableLabels,
 	)
+}
+
+func (d *Desc) GetPriority() uint32 {
+	return d.priority
 }

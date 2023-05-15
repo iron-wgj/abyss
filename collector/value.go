@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"wanggj.com/abyss/module"
 )
 
@@ -14,6 +15,7 @@ const (
 	_ ValueType = iota
 	CounterValue
 	GaugeValue
+	EventValue
 )
 
 var (
@@ -25,6 +27,10 @@ var (
 		d := module.MetricType_GAUGE
 		return &d
 	}()
+	EventMetricTypePtr = func() *module.MetricType {
+		d := module.MetricType_EVENT
+		return &d
+	}()
 )
 
 func (v ValueType) ToModule() *module.MetricType {
@@ -33,6 +39,8 @@ func (v ValueType) ToModule() *module.MetricType {
 		return CounterMetricTypePtr
 	case GaugeValue:
 		return GaugeMetricTypePtr
+	case EventValue:
+		return EventMetricTypePtr
 	default:
 		return nil
 	}
@@ -52,6 +60,11 @@ func populateMetric(
 		m.Counter = &module.Counter{Value: proto.Float64(v)}
 	case GaugeValue:
 		m.Gauge = &module.Gauge{Value: proto.Float64(v)}
+	case EventValue:
+		m.Event = &module.Event{
+			Value:     proto.Float64(v),
+			Timestamp: timestamppb.Now(),
+		}
 	default:
 		return fmt.Errorf("func populateMetric encountered unknow type %v", t)
 	}

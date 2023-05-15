@@ -81,6 +81,7 @@ func DataGather(logger *log.Logger, gatherInv time.Duration) error {
 				proccfg := new(ProcConfig)
 				err = yaml.Unmarshal(cfg, &proccfg)
 				if err != nil {
+					fmt.Println(err)
 					logger.Println(NewProcError(n, err))
 					continue
 				}
